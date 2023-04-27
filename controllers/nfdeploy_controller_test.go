@@ -20,7 +20,8 @@ import (
 	"context"
 	"fmt"
 
-	types2 "github.com/nephio-project/common-lib/nfdeploy"
+	nfdeployments "github.com/nephio-project/api/nf_deployments/v1alpha1"
+
 	"github.com/nephio-project/edge-status-aggregator/api/v1alpha1"
 	"github.com/nephio-project/edge-status-aggregator/tests/utils"
 	"github.com/nephio-project/edge-status-aggregator/util"
@@ -43,25 +44,28 @@ var (
 )
 
 func generateUPFEdgeEvent(
-	stalledStatus corev1.ConditionStatus, availableStatus corev1.ConditionStatus,
-	readyStatus corev1.ConditionStatus, peeringStatus corev1.ConditionStatus,
-	reconcilingStatus corev1.ConditionStatus, name string,
+	stalledStatus metav1.ConditionStatus, availableStatus metav1.ConditionStatus,
+	readyStatus metav1.ConditionStatus, peeringStatus metav1.ConditionStatus,
+	reconcilingStatus metav1.ConditionStatus, name string,
 ) preprocessor.Event {
-	upfDeploy := types2.UpfDeploy{
+
+	upfDeploy := nfdeployments.UPFDeployment{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:   name,
 			Labels: map[string]string{util.NFSiteIDLabel: name},
 		},
-		Status: types2.UpfDeployStatus{
-			Conditions: []types2.NFCondition{
-				{Type: types2.Stalled, Status: stalledStatus},
-				{Type: types2.Reconciling, Status: reconcilingStatus},
-				{Type: types2.Available, Status: availableStatus},
-				{Type: types2.Peering, Status: peeringStatus},
-				{Type: types2.Ready, Status: readyStatus},
+		Status: nfdeployments.UPFDeploymentStatus{NFDeploymentStatus: nfdeployments.NFDeploymentStatus{
+			Conditions: []metav1.Condition{
+				{Type: string(nfdeployments.Stalled), Status: stalledStatus},
+				{Type: string(nfdeployments.Reconciling), Status: reconcilingStatus},
+				{Type: string(nfdeployments.Available), Status: availableStatus},
+				{Type: string(nfdeployments.Peering), Status: peeringStatus},
+				{Type: string(nfdeployments.Ready), Status: readyStatus},
 			},
 		},
+		},
 	}
+
 	data, err := runtime.DefaultUnstructuredConverter.ToUnstructured(&upfDeploy)
 	Expect(err).To(
 		BeNil(),
@@ -69,7 +73,7 @@ func generateUPFEdgeEvent(
 	)
 
 	return preprocessor.Event{
-		Key: preprocessor.RequestKey{Namespace: "upf", Kind: "UPFDeploy"},
+		Key: preprocessor.RequestKey{Namespace: "upf", Kind: "UPFDeployment"},
 		Object: &unstructured.Unstructured{
 			Object: data,
 		},
@@ -77,23 +81,25 @@ func generateUPFEdgeEvent(
 }
 
 func generateSMFEdgeEvent(
-	stalledStatus corev1.ConditionStatus, availableStatus corev1.ConditionStatus,
-	readyStatus corev1.ConditionStatus, peeringStatus corev1.ConditionStatus,
-	reconcilingStatus corev1.ConditionStatus, name string,
+	stalledStatus metav1.ConditionStatus, availableStatus metav1.ConditionStatus,
+	readyStatus metav1.ConditionStatus, peeringStatus metav1.ConditionStatus,
+	reconcilingStatus metav1.ConditionStatus, name string,
 ) preprocessor.Event {
-	smfDeploy := types2.SmfDeploy{
+
+	smfDeploy := nfdeployments.SMFDeployment{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:   name,
 			Labels: map[string]string{util.NFSiteIDLabel: name},
 		},
-		Status: types2.SmfDeployStatus{
-			Conditions: []types2.NFCondition{
-				{Type: types2.Stalled, Status: stalledStatus},
-				{Type: types2.Reconciling, Status: reconcilingStatus},
-				{Type: types2.Available, Status: availableStatus},
-				{Type: types2.Peering, Status: peeringStatus},
-				{Type: types2.Ready, Status: readyStatus},
+		Status: nfdeployments.SMFDeploymentStatus{NFDeploymentStatus: nfdeployments.NFDeploymentStatus{
+			Conditions: []metav1.Condition{
+				{Type: string(nfdeployments.Stalled), Status: stalledStatus},
+				{Type: string(nfdeployments.Reconciling), Status: reconcilingStatus},
+				{Type: string(nfdeployments.Available), Status: availableStatus},
+				{Type: string(nfdeployments.Peering), Status: peeringStatus},
+				{Type: string(nfdeployments.Ready), Status: readyStatus},
 			},
+		},
 		},
 	}
 
@@ -104,7 +110,7 @@ func generateSMFEdgeEvent(
 	)
 
 	return preprocessor.Event{
-		Key: preprocessor.RequestKey{Namespace: "smf", Kind: "SMFDeploy"},
+		Key: preprocessor.RequestKey{Namespace: "smf", Kind: "SMFDeployment"},
 		Object: &unstructured.Unstructured{
 			Object: data,
 		},
@@ -432,9 +438,9 @@ var _ = Describe(
 								req := <-fakeDeploymentManager.SubscriptionReqChan
 								req.Error <- nil
 								req.SubscriberInfo.Channel <- generateUPFEdgeEvent(
-									corev1.ConditionUnknown, corev1.ConditionUnknown,
-									corev1.ConditionUnknown, corev1.ConditionUnknown,
-									corev1.ConditionUnknown, "upf-dummy",
+									metav1.ConditionUnknown, metav1.ConditionUnknown,
+									metav1.ConditionUnknown, metav1.ConditionUnknown,
+									metav1.ConditionUnknown, "upf-dummy",
 								)
 								var newNfDeploy v1alpha1.NfDeploy
 								Consistently(
@@ -485,9 +491,9 @@ var _ = Describe(
 
 								// first NF reconciling
 								req.SubscriberInfo.Channel <- generateUPFEdgeEvent(
-									corev1.ConditionFalse, corev1.ConditionFalse,
-									corev1.ConditionFalse, corev1.ConditionFalse,
-									corev1.ConditionTrue, "upf-dummy",
+									metav1.ConditionFalse, metav1.ConditionFalse,
+									metav1.ConditionFalse, metav1.ConditionFalse,
+									metav1.ConditionTrue, "upf-dummy",
 								)
 								var newNfDeploy v1alpha1.NfDeploy
 								Eventually(
@@ -514,9 +520,9 @@ var _ = Describe(
 
 								// second NF reconciling
 								req.SubscriberInfo.Channel <- generateSMFEdgeEvent(
-									corev1.ConditionFalse, corev1.ConditionFalse,
-									corev1.ConditionFalse, corev1.ConditionFalse,
-									corev1.ConditionTrue, "smf-dummy",
+									metav1.ConditionFalse, metav1.ConditionFalse,
+									metav1.ConditionFalse, metav1.ConditionFalse,
+									metav1.ConditionTrue, "smf-dummy",
 								)
 								Eventually(
 									func() string {
@@ -542,14 +548,14 @@ var _ = Describe(
 
 								// No NF reconciling
 								req.SubscriberInfo.Channel <- generateUPFEdgeEvent(
-									corev1.ConditionFalse, corev1.ConditionFalse,
-									corev1.ConditionFalse, corev1.ConditionFalse,
-									corev1.ConditionFalse, "upf-dummy",
+									metav1.ConditionFalse, metav1.ConditionFalse,
+									metav1.ConditionFalse, metav1.ConditionFalse,
+									metav1.ConditionFalse, "upf-dummy",
 								)
 								req.SubscriberInfo.Channel <- generateSMFEdgeEvent(
-									corev1.ConditionFalse, corev1.ConditionFalse,
-									corev1.ConditionFalse, corev1.ConditionFalse,
-									corev1.ConditionFalse, "smf-dummy",
+									metav1.ConditionFalse, metav1.ConditionFalse,
+									metav1.ConditionFalse, metav1.ConditionFalse,
+									metav1.ConditionFalse, "smf-dummy",
 								)
 								Eventually(
 									func() string {
@@ -575,14 +581,14 @@ var _ = Describe(
 
 								// All NFs reconciled
 								req.SubscriberInfo.Channel <- generateUPFEdgeEvent(
-									corev1.ConditionFalse, corev1.ConditionTrue,
-									corev1.ConditionTrue, corev1.ConditionFalse,
-									corev1.ConditionFalse, "upf-dummy",
+									metav1.ConditionFalse, metav1.ConditionTrue,
+									metav1.ConditionTrue, metav1.ConditionFalse,
+									metav1.ConditionFalse, "upf-dummy",
 								)
 								req.SubscriberInfo.Channel <- generateSMFEdgeEvent(
-									corev1.ConditionFalse, corev1.ConditionTrue,
-									corev1.ConditionTrue, corev1.ConditionFalse,
-									corev1.ConditionFalse, "smf-dummy",
+									metav1.ConditionFalse, metav1.ConditionTrue,
+									metav1.ConditionTrue, metav1.ConditionFalse,
+									metav1.ConditionFalse, "smf-dummy",
 								)
 								Eventually(
 									func() string {
@@ -628,9 +634,9 @@ var _ = Describe(
 
 								// first NF peering
 								req.SubscriberInfo.Channel <- generateUPFEdgeEvent(
-									corev1.ConditionFalse, corev1.ConditionTrue,
-									corev1.ConditionFalse, corev1.ConditionTrue,
-									corev1.ConditionTrue, "upf-dummy",
+									metav1.ConditionFalse, metav1.ConditionTrue,
+									metav1.ConditionFalse, metav1.ConditionTrue,
+									metav1.ConditionTrue, "upf-dummy",
 								)
 								var newNfDeploy v1alpha1.NfDeploy
 								Eventually(
@@ -657,9 +663,9 @@ var _ = Describe(
 
 								// second NF peering
 								req.SubscriberInfo.Channel <- generateSMFEdgeEvent(
-									corev1.ConditionFalse, corev1.ConditionTrue,
-									corev1.ConditionFalse, corev1.ConditionTrue,
-									corev1.ConditionTrue, "smf-dummy",
+									metav1.ConditionFalse, metav1.ConditionTrue,
+									metav1.ConditionFalse, metav1.ConditionTrue,
+									metav1.ConditionTrue, "smf-dummy",
 								)
 								Eventually(
 									func() string {
@@ -685,14 +691,14 @@ var _ = Describe(
 
 								// No NF peering
 								req.SubscriberInfo.Channel <- generateUPFEdgeEvent(
-									corev1.ConditionFalse, corev1.ConditionFalse,
-									corev1.ConditionFalse, corev1.ConditionFalse,
-									corev1.ConditionFalse, "upf-dummy",
+									metav1.ConditionFalse, metav1.ConditionFalse,
+									metav1.ConditionFalse, metav1.ConditionFalse,
+									metav1.ConditionFalse, "upf-dummy",
 								)
 								req.SubscriberInfo.Channel <- generateSMFEdgeEvent(
-									corev1.ConditionFalse, corev1.ConditionFalse,
-									corev1.ConditionFalse, corev1.ConditionFalse,
-									corev1.ConditionFalse, "smf-dummy",
+									metav1.ConditionFalse, metav1.ConditionFalse,
+									metav1.ConditionFalse, metav1.ConditionFalse,
+									metav1.ConditionFalse, "smf-dummy",
 								)
 								Eventually(
 									func() string {
@@ -718,14 +724,14 @@ var _ = Describe(
 
 								// All NFs peered
 								req.SubscriberInfo.Channel <- generateUPFEdgeEvent(
-									corev1.ConditionFalse, corev1.ConditionTrue,
-									corev1.ConditionTrue, corev1.ConditionFalse,
-									corev1.ConditionFalse, "upf-dummy",
+									metav1.ConditionFalse, metav1.ConditionTrue,
+									metav1.ConditionTrue, metav1.ConditionFalse,
+									metav1.ConditionFalse, "upf-dummy",
 								)
 								req.SubscriberInfo.Channel <- generateSMFEdgeEvent(
-									corev1.ConditionFalse, corev1.ConditionTrue,
-									corev1.ConditionTrue, corev1.ConditionFalse,
-									corev1.ConditionFalse, "smf-dummy",
+									metav1.ConditionFalse, metav1.ConditionTrue,
+									metav1.ConditionTrue, metav1.ConditionFalse,
+									metav1.ConditionFalse, "smf-dummy",
 								)
 								Eventually(
 									func() string {
@@ -771,9 +777,9 @@ var _ = Describe(
 
 								// first NF ready
 								req.SubscriberInfo.Channel <- generateUPFEdgeEvent(
-									corev1.ConditionFalse, corev1.ConditionTrue,
-									corev1.ConditionTrue, corev1.ConditionFalse,
-									corev1.ConditionFalse, "upf-dummy",
+									metav1.ConditionFalse, metav1.ConditionTrue,
+									metav1.ConditionTrue, metav1.ConditionFalse,
+									metav1.ConditionFalse, "upf-dummy",
 								)
 								var newNfDeploy v1alpha1.NfDeploy
 								Eventually(
@@ -800,9 +806,9 @@ var _ = Describe(
 
 								// second NF ready
 								req.SubscriberInfo.Channel <- generateSMFEdgeEvent(
-									corev1.ConditionFalse, corev1.ConditionTrue,
-									corev1.ConditionTrue, corev1.ConditionFalse,
-									corev1.ConditionFalse, "smf-dummy",
+									metav1.ConditionFalse, metav1.ConditionTrue,
+									metav1.ConditionTrue, metav1.ConditionFalse,
+									metav1.ConditionFalse, "smf-dummy",
 								)
 								Eventually(
 									func() string {
@@ -828,14 +834,14 @@ var _ = Describe(
 
 								// No NF ready
 								req.SubscriberInfo.Channel <- generateUPFEdgeEvent(
-									corev1.ConditionFalse, corev1.ConditionFalse,
-									corev1.ConditionFalse, corev1.ConditionFalse,
-									corev1.ConditionFalse, "upf-dummy",
+									metav1.ConditionFalse, metav1.ConditionFalse,
+									metav1.ConditionFalse, metav1.ConditionFalse,
+									metav1.ConditionFalse, "upf-dummy",
 								)
 								req.SubscriberInfo.Channel <- generateSMFEdgeEvent(
-									corev1.ConditionFalse, corev1.ConditionFalse,
-									corev1.ConditionFalse, corev1.ConditionFalse,
-									corev1.ConditionFalse, "smf-dummy",
+									metav1.ConditionFalse, metav1.ConditionFalse,
+									metav1.ConditionFalse, metav1.ConditionFalse,
+									metav1.ConditionFalse, "smf-dummy",
 								)
 								Eventually(
 									func() string {
@@ -882,14 +888,14 @@ var _ = Describe(
 
 								// first NF stalled
 								req.SubscriberInfo.Channel <- generateUPFEdgeEvent(
-									corev1.ConditionTrue, corev1.ConditionFalse,
-									corev1.ConditionFalse, corev1.ConditionFalse,
-									corev1.ConditionFalse, "upf-dummy",
+									metav1.ConditionTrue, metav1.ConditionFalse,
+									metav1.ConditionFalse, metav1.ConditionFalse,
+									metav1.ConditionFalse, "upf-dummy",
 								)
 								req.SubscriberInfo.Channel <- generateSMFEdgeEvent(
-									corev1.ConditionFalse, corev1.ConditionTrue,
-									corev1.ConditionFalse, corev1.ConditionFalse,
-									corev1.ConditionFalse, "smf-dummy",
+									metav1.ConditionFalse, metav1.ConditionTrue,
+									metav1.ConditionFalse, metav1.ConditionFalse,
+									metav1.ConditionFalse, "smf-dummy",
 								)
 								var newNfDeploy v1alpha1.NfDeploy
 								Eventually(
@@ -916,9 +922,9 @@ var _ = Describe(
 
 								// second NF stalled
 								req.SubscriberInfo.Channel <- generateSMFEdgeEvent(
-									corev1.ConditionTrue, corev1.ConditionFalse,
-									corev1.ConditionFalse, corev1.ConditionFalse,
-									corev1.ConditionFalse, "smf-dummy",
+									metav1.ConditionTrue, metav1.ConditionFalse,
+									metav1.ConditionFalse, metav1.ConditionFalse,
+									metav1.ConditionFalse, "smf-dummy",
 								)
 								Eventually(
 									func() string {
@@ -944,14 +950,14 @@ var _ = Describe(
 
 								// No NF stalled
 								req.SubscriberInfo.Channel <- generateUPFEdgeEvent(
-									corev1.ConditionFalse, corev1.ConditionTrue,
-									corev1.ConditionFalse, corev1.ConditionFalse,
-									corev1.ConditionFalse, "upf-dummy",
+									metav1.ConditionFalse, metav1.ConditionTrue,
+									metav1.ConditionFalse, metav1.ConditionFalse,
+									metav1.ConditionFalse, "upf-dummy",
 								)
 								req.SubscriberInfo.Channel <- generateSMFEdgeEvent(
-									corev1.ConditionFalse, corev1.ConditionTrue,
-									corev1.ConditionFalse, corev1.ConditionFalse,
-									corev1.ConditionFalse, "smf-dummy",
+									metav1.ConditionFalse, metav1.ConditionTrue,
+									metav1.ConditionFalse, metav1.ConditionFalse,
+									metav1.ConditionFalse, "smf-dummy",
 								)
 								Eventually(
 									func() string {
@@ -986,36 +992,36 @@ var _ = Describe(
 								var edgeEvents []preprocessor.Event
 								edgeEvents = append(
 									edgeEvents, generateUPFEdgeEvent(
-										corev1.ConditionFalse, corev1.ConditionFalse,
-										corev1.ConditionFalse, corev1.ConditionFalse,
-										corev1.ConditionFalse, "upf-dummy",
+										metav1.ConditionFalse, metav1.ConditionFalse,
+										metav1.ConditionFalse, metav1.ConditionFalse,
+										metav1.ConditionFalse, "upf-dummy",
 									), generateUPFEdgeEvent(
-										corev1.ConditionFalse, corev1.ConditionFalse,
-										corev1.ConditionTrue, corev1.ConditionFalse,
-										corev1.ConditionFalse, "upf-dummy",
+										metav1.ConditionFalse, metav1.ConditionFalse,
+										metav1.ConditionTrue, metav1.ConditionFalse,
+										metav1.ConditionFalse, "upf-dummy",
 									),
 									generateUPFEdgeEvent(
-										corev1.ConditionFalse, corev1.ConditionTrue,
-										corev1.ConditionFalse, corev1.ConditionTrue,
-										corev1.ConditionFalse, "upf-dummy",
+										metav1.ConditionFalse, metav1.ConditionTrue,
+										metav1.ConditionFalse, metav1.ConditionTrue,
+										metav1.ConditionFalse, "upf-dummy",
 									),
 									generateUPFEdgeEvent(
-										corev1.ConditionFalse, corev1.ConditionFalse,
-										corev1.ConditionTrue, corev1.ConditionTrue,
-										corev1.ConditionFalse, "upf-dummy",
+										metav1.ConditionFalse, metav1.ConditionFalse,
+										metav1.ConditionTrue, metav1.ConditionTrue,
+										metav1.ConditionFalse, "upf-dummy",
 									),
 									generateUPFEdgeEvent(
-										corev1.ConditionTrue, corev1.ConditionFalse,
-										corev1.ConditionTrue, corev1.ConditionFalse,
-										corev1.ConditionFalse, "upf-dummy",
+										metav1.ConditionTrue, metav1.ConditionFalse,
+										metav1.ConditionTrue, metav1.ConditionFalse,
+										metav1.ConditionFalse, "upf-dummy",
 									), generateUPFEdgeEvent(
-										corev1.ConditionFalse, corev1.ConditionTrue,
-										corev1.ConditionTrue, corev1.ConditionFalse,
-										corev1.ConditionFalse, "upf-dummy",
+										metav1.ConditionFalse, metav1.ConditionTrue,
+										metav1.ConditionTrue, metav1.ConditionFalse,
+										metav1.ConditionFalse, "upf-dummy",
 									), generateSMFEdgeEvent(
-										corev1.ConditionFalse, corev1.ConditionTrue,
-										corev1.ConditionTrue, corev1.ConditionFalse,
-										corev1.ConditionFalse, "smf-dummy",
+										metav1.ConditionFalse, metav1.ConditionTrue,
+										metav1.ConditionTrue, metav1.ConditionFalse,
+										metav1.ConditionFalse, "smf-dummy",
 									),
 								)
 								finalExpectedStatus := make(map[v1alpha1.NFDeployConditionType]corev1.ConditionStatus)
@@ -1037,17 +1043,17 @@ var _ = Describe(
 								var edgeEvents []preprocessor.Event
 								edgeEvents = append(
 									edgeEvents, generateUPFEdgeEvent(
-										corev1.ConditionFalse, corev1.ConditionFalse,
-										corev1.ConditionFalse, corev1.ConditionFalse,
-										corev1.ConditionFalse, "upf-dummy",
+										metav1.ConditionFalse, metav1.ConditionFalse,
+										metav1.ConditionFalse, metav1.ConditionFalse,
+										metav1.ConditionFalse, "upf-dummy",
 									), generateUPFEdgeEvent(
-										corev1.ConditionUnknown, corev1.ConditionUnknown,
-										corev1.ConditionTrue, corev1.ConditionUnknown,
-										corev1.ConditionUnknown, "upf-dummy",
+										metav1.ConditionUnknown, metav1.ConditionUnknown,
+										metav1.ConditionTrue, metav1.ConditionUnknown,
+										metav1.ConditionUnknown, "upf-dummy",
 									), generateSMFEdgeEvent(
-										corev1.ConditionTrue, corev1.ConditionUnknown,
-										corev1.ConditionUnknown, corev1.ConditionUnknown,
-										corev1.ConditionTrue, "smf-dummy",
+										metav1.ConditionTrue, metav1.ConditionUnknown,
+										metav1.ConditionUnknown, metav1.ConditionUnknown,
+										metav1.ConditionTrue, "smf-dummy",
 									),
 								)
 								finalExpectedStatus := make(map[v1alpha1.NFDeployConditionType]corev1.ConditionStatus)

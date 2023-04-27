@@ -28,7 +28,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 
 	"github.com/go-logr/logr"
-	types "github.com/nephio-project/common-lib/nfdeploy"
+	nfdeployments "github.com/nephio-project/api/nf_deployments/v1alpha1"
 	"github.com/nephio-project/edge-status-aggregator/api/v1alpha1"
 	"github.com/nephio-project/edge-watcher/preprocessor"
 	corev1 "k8s.io/api/core/v1"
@@ -339,23 +339,23 @@ func (deployment *Deployment) processEdgeEvent(object *preprocessor.Event) {
 	}
 
 	switch object.Key.Kind {
-	case "UPFDeploy":
-		upfDeploy := &types.UpfDeploy{}
+	case "UPFDeployment":
+		upfDeployment := &nfdeployments.UPFDeployment{}
 		if err := runtime.DefaultUnstructuredConverter.
-			FromUnstructured(obj.Object, upfDeploy); err != nil {
+			FromUnstructured(obj.Object, upfDeployment); err != nil {
 			deployment.logger.Info(
-				"Unable to convert received UPFDeploy object to UPFDeploy type from *unstructured.Unstructured",
+				"Unable to convert received UPFDeployment object to UPFDeploy type from *unstructured.Unstructured",
 				"err", err.Error(),
 			)
 			return
 		}
-		upfName := upfDeploy.ObjectMeta.Labels[util.NFSiteIDLabel]
+		upfName := upfDeployment.ObjectMeta.Labels[util.NFSiteIDLabel]
 		deployment.logger.Info(
-			"Edge event received for", "UPFDeploy", upfName,
+			"Edge event received for", "UPFDeployment", upfName,
 		)
 		if _, isPresent := deployment.upfNodes[upfName]; !isPresent {
 			deployment.logger.Info(
-				"The NF is not present in current deployment", "UPFDeploy",
+				"The NF is not present in current deployment", "UPFDeployment",
 				upfName,
 			)
 			return
@@ -363,7 +363,7 @@ func (deployment *Deployment) processEdgeEvent(object *preprocessor.Event) {
 		// TODO: add testcase to verify stale events are discarded
 		if object.Timestamp.Before(deployment.upfNodes[upfName].Status.lastEventTimestamp) {
 			deployment.logger.Info(
-				"The NF event received is of previous timestamp", "UPFDeploy",
+				"The NF event received is of previous timestamp", "UPFDeployment",
 				upfName,
 			)
 			return
@@ -372,32 +372,32 @@ func (deployment *Deployment) processEdgeEvent(object *preprocessor.Event) {
 		upfNode.Status.lastEventTimestamp = object.Timestamp
 		deployment.upfNodes[upfName] = upfNode
 		deployment.processNFEdgeEvent(
-			&upfDeploy.Status.Conditions, upfName,
+			&upfDeployment.Status.Conditions, upfName,
 		)
-	case "SMFDeploy":
-		smfDeploy := &types.SmfDeploy{}
+	case "SMFDeployment":
+		smfDeployment := &nfdeployments.SMFDeployment{}
 		if err := runtime.DefaultUnstructuredConverter.
-			FromUnstructured(obj.Object, smfDeploy); err != nil {
+			FromUnstructured(obj.Object, smfDeployment); err != nil {
 			deployment.logger.Info(
-				"Unable to convert received SMFDeploy object to SMFDeploy type from *unstructured.Unstructured",
+				"Unable to convert received SMFDeployment object to SMFDeployment type from *unstructured.Unstructured",
 				"err", err.Error(),
 			)
 			return
 		}
-		smfName := smfDeploy.ObjectMeta.Labels[util.NFSiteIDLabel]
+		smfName := smfDeployment.ObjectMeta.Labels[util.NFSiteIDLabel]
 		deployment.logger.Info(
-			"Edge event received for", "SMFDeploy", smfName,
+			"Edge event received for", "SMFDeployment", smfName,
 		)
 		if _, isPresent := deployment.smfNodes[smfName]; !isPresent {
 			deployment.logger.Info(
-				"The NF is not present in current deployment", "SMFDeploy",
+				"The NF is not present in current deployment", "SMFDeployment",
 				smfName,
 			)
 			return
 		}
 		if object.Timestamp.Before(deployment.smfNodes[smfName].Status.lastEventTimestamp) {
 			deployment.logger.Info(
-				"The NF event received is of previous timestamp", "SMFDeploy",
+				"The NF event received is of previous timestamp", "SMFDeployment",
 				smfName,
 			)
 			return
@@ -406,7 +406,7 @@ func (deployment *Deployment) processEdgeEvent(object *preprocessor.Event) {
 		smfNode.Status.lastEventTimestamp = object.Timestamp
 		deployment.smfNodes[smfName] = smfNode
 		deployment.processNFEdgeEvent(
-			&smfDeploy.Status.Conditions, smfName,
+			&smfDeployment.Status.Conditions, smfName,
 		)
 	}
 	// TODO: implement AMF Status once AMFDeploy is finalised
@@ -441,7 +441,7 @@ func (deployment *Deployment) listenEdgeEvents() {
 // processNFEdgeEvent : This method computes and updates aggregated status of
 // NFDeploy resource based on the change in status of a single NF
 func (deployment *Deployment) processNFEdgeEvent(
-	nfConditions *[]types.NFCondition, nfId string,
+	nfConditions *[]metav1.Condition, nfId string,
 ) {
 	conditions, conditionMessage := deployment.calculateNFConditionSet(nfConditions)
 
