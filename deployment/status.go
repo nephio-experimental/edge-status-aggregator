@@ -21,7 +21,7 @@ import (
 	"strings"
 	"time"
 
-	types "github.com/nephio-project/common-lib/nfdeploy"
+	nfdeployments "github.com/nephio-project/api/nf_deployments/v1alpha1"
 	"github.com/nephio-project/edge-status-aggregator/api/v1alpha1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -29,16 +29,16 @@ import (
 )
 
 // isAmbiguousConditionSet: returns true when no condition's status is set to True
-func (deployment *Deployment) isAmbiguousConditionSet(conditions map[types.NFConditionType]corev1.ConditionStatus) bool {
+func (deployment *Deployment) isAmbiguousConditionSet(conditions map[nfdeployments.NFDeploymentConditionType]metav1.ConditionStatus) bool {
 	isAnyConditionSet := false
 	for _, status := range conditions {
-		if status == corev1.ConditionTrue {
+		if status == metav1.ConditionTrue {
 			isAnyConditionSet = true
 		}
 	}
 	isStalled := false
-	if conditions[types.Available] == corev1.ConditionFalse &&
-		conditions[types.Reconciling] == corev1.ConditionFalse {
+	if conditions[nfdeployments.Available] == metav1.ConditionFalse &&
+		conditions[nfdeployments.Reconciling] == metav1.ConditionFalse {
 		isStalled = true
 	}
 
@@ -48,51 +48,51 @@ func (deployment *Deployment) isAmbiguousConditionSet(conditions map[types.NFCon
 // validateNFConditionSet : checks if the given condition set from NF Status is
 // valid or not. Updates NFStatus as stalled if the given condition is not valid
 func (deployment *Deployment) validateNFConditionSet(
-	conditions map[types.NFConditionType]corev1.ConditionStatus,
+	conditions map[nfdeployments.NFDeploymentConditionType]metav1.ConditionStatus,
 
 ) (NFStatus, bool) {
 
-	if conditions[types.Ready] == corev1.ConditionTrue &&
-		conditions[types.Stalled] == corev1.ConditionTrue {
+	if conditions[nfdeployments.Ready] == metav1.ConditionTrue &&
+		conditions[nfdeployments.Stalled] == metav1.ConditionTrue {
 		message := "Inconsistent NFTypeDeploy status received. Ready and stalled " +
 			"conditions cannot be true at the same time."
 		return NFStatus{
-			state:            types.Stalled,
+			state:            nfdeployments.Stalled,
 			stateMessage:     message,
-			activeConditions: map[types.NFConditionType]string{types.Stalled: message},
+			activeConditions: map[nfdeployments.NFDeploymentConditionType]string{nfdeployments.Stalled: message},
 		}, true
 	}
-	if (conditions[types.Ready] == corev1.ConditionTrue ||
-		conditions[types.Peering] == corev1.ConditionTrue) &&
-		conditions[types.Available] == corev1.ConditionFalse {
+	if (conditions[nfdeployments.Ready] == metav1.ConditionTrue ||
+		conditions[nfdeployments.Peering] == metav1.ConditionTrue) &&
+		conditions[nfdeployments.Available] == metav1.ConditionFalse {
 		message := "Inconsistent NFTypeDeploy status received." +
 			" Available condition cannot be false when ready or peering conditions are true."
 		return NFStatus{
-			state:            types.Stalled,
+			state:            nfdeployments.Stalled,
 			stateMessage:     message,
-			activeConditions: map[types.NFConditionType]string{types.Stalled: message},
+			activeConditions: map[nfdeployments.NFDeploymentConditionType]string{nfdeployments.Stalled: message},
 		}, true
 
 	}
-	if conditions[types.Reconciling] == corev1.ConditionFalse && conditions[types.Peering] == corev1.ConditionTrue {
+	if conditions[nfdeployments.Reconciling] == metav1.ConditionFalse && conditions[nfdeployments.Peering] == metav1.ConditionTrue {
 		message := "Inconsistent NFTypeDeploy status received. Reconciling " +
 			"condition cannot be false when peering condition is true."
 		return NFStatus{
-			state:            types.Stalled,
+			state:            nfdeployments.Stalled,
 			stateMessage:     message,
-			activeConditions: map[types.NFConditionType]string{types.Stalled: message},
+			activeConditions: map[nfdeployments.NFDeploymentConditionType]string{nfdeployments.Stalled: message},
 		}, true
 	}
-	if (conditions[types.Peering] == corev1.ConditionTrue ||
-		conditions[types.Reconciling] == corev1.ConditionTrue) &&
-		conditions[types.Ready] == corev1.ConditionTrue {
+	if (conditions[nfdeployments.Peering] == metav1.ConditionTrue ||
+		conditions[nfdeployments.Reconciling] == metav1.ConditionTrue) &&
+		conditions[nfdeployments.Ready] == metav1.ConditionTrue {
 		message := "Inconsistent NFTypeDeploy status received." +
 			" Ready condition cannot be true when either reconciling or peering " +
 			"condition are true."
 		return NFStatus{
-			state:            types.Stalled,
+			state:            nfdeployments.Stalled,
 			stateMessage:     message,
-			activeConditions: map[types.NFConditionType]string{types.Stalled: message},
+			activeConditions: map[nfdeployments.NFDeploymentConditionType]string{nfdeployments.Stalled: message},
 		}, true
 	}
 
@@ -116,13 +116,13 @@ func (deployment *Deployment) computeReconcilingCondition(
 	reconcilingNFs := 0
 	message := "The NFs which are in Reconciling state are: "
 	for _, node := range deployment.upfNodes {
-		if _, isPresent := node.Status.activeConditions[types.Reconciling]; isPresent {
+		if _, isPresent := node.Status.activeConditions[nfdeployments.Reconciling]; isPresent {
 			message = message + node.Id + ", "
 			reconcilingNFs++
 		}
 	}
 	for _, node := range deployment.smfNodes {
-		if _, isPresent := node.Status.activeConditions[types.Reconciling]; isPresent {
+		if _, isPresent := node.Status.activeConditions[nfdeployments.Reconciling]; isPresent {
 			message = message + node.Id + ", "
 			reconcilingNFs++
 		}
@@ -167,13 +167,13 @@ func (deployment *Deployment) computePeeringCondition(
 	peeringNFs := 0
 	message := "The NFs which are in Peering state are: "
 	for _, node := range deployment.upfNodes {
-		if _, isPresent := node.Status.activeConditions[types.Peering]; isPresent {
+		if _, isPresent := node.Status.activeConditions[nfdeployments.Peering]; isPresent {
 			message = message + node.Id + ", "
 			peeringNFs++
 		}
 	}
 	for _, node := range deployment.smfNodes {
-		if _, isPresent := node.Status.activeConditions[types.Peering]; isPresent {
+		if _, isPresent := node.Status.activeConditions[nfdeployments.Peering]; isPresent {
 			message = message + node.Id + ", "
 			peeringNFs++
 		}
@@ -227,12 +227,12 @@ func (deployment *Deployment) computeReadyCondition(
 	}
 	message := "The NFs which are not in Ready state are: "
 	for _, node := range deployment.upfNodes {
-		if _, isPresent := node.Status.activeConditions[types.Ready]; !isPresent {
+		if _, isPresent := node.Status.activeConditions[nfdeployments.Ready]; !isPresent {
 			message = message + node.Id + ", "
 		}
 	}
 	for _, node := range deployment.smfNodes {
-		if _, isPresent := node.Status.activeConditions[types.Ready]; !isPresent {
+		if _, isPresent := node.Status.activeConditions[nfdeployments.Ready]; !isPresent {
 			message = message + node.Id + ", "
 		}
 	}
@@ -268,14 +268,14 @@ func (deployment *Deployment) computeStalledCondition(
 	message := ""
 	for _, node := range deployment.upfNodes {
 		for conditionType, conditionStatus := range node.Status.activeConditions {
-			if conditionType == types.Stalled {
+			if conditionType == nfdeployments.Stalled {
 				message = message + node.Id + ": " + conditionStatus + ", "
 			}
 		}
 	}
 	for _, node := range deployment.smfNodes {
 		for conditionType, conditionStatus := range node.Status.activeConditions {
-			if conditionType == types.Stalled {
+			if conditionType == nfdeployments.Stalled {
 				message = message + node.Id + ": " + conditionStatus + ", "
 			}
 		}
@@ -295,26 +295,26 @@ func (deployment *Deployment) calculateNFCount() (int, int, int, int) {
 	targetedNFs := len(deployment.upfNodes) + len(deployment.smfNodes)
 	for _, node := range deployment.upfNodes {
 		for conditionType := range node.Status.activeConditions {
-			if conditionType == types.Ready {
+			if conditionType == nfdeployments.Ready {
 				readyNFs++
 			}
-			if conditionType == types.Stalled {
+			if conditionType == nfdeployments.Stalled {
 				stalledNFs++
 			}
-			if conditionType == types.Available {
+			if conditionType == nfdeployments.Available {
 				availableNFs++
 			}
 		}
 	}
 	for _, node := range deployment.smfNodes {
 		for conditionType := range node.Status.activeConditions {
-			if conditionType == types.Ready {
+			if conditionType == nfdeployments.Ready {
 				readyNFs++
 			}
-			if conditionType == types.Stalled {
+			if conditionType == nfdeployments.Stalled {
 				stalledNFs++
 			}
-			if conditionType == types.Available {
+			if conditionType == nfdeployments.Available {
 				availableNFs++
 			}
 		}
@@ -326,61 +326,61 @@ func (deployment *Deployment) calculateNFCount() (int, int, int, int) {
 // updateCurrentNFStatus: computes and updates in memory status of an NFNode
 // present in current deployment
 func (deployment *Deployment) updateCurrentNFStatus(
-	nfId string, conditions map[types.NFConditionType]corev1.ConditionStatus,
-	conditionMessage map[types.NFConditionType]string,
+	nfId string, conditions map[nfdeployments.NFDeploymentConditionType]metav1.ConditionStatus,
+	conditionMessage map[nfdeployments.NFDeploymentConditionType]string,
 ) {
 	currentStatus, isSet := deployment.validateNFConditionSet(conditions)
 
 	if !isSet {
-		activeConditions := make(map[types.NFConditionType]string)
+		activeConditions := make(map[nfdeployments.NFDeploymentConditionType]string)
 		for conditionType, conditionStatus := range conditions {
-			if conditionStatus == corev1.ConditionTrue {
+			if conditionStatus == metav1.ConditionTrue {
 				activeConditions[conditionType] = conditionMessage[conditionType]
 			}
 		}
-		if conditions[types.Available] == corev1.ConditionFalse &&
-			conditions[types.Reconciling] == corev1.ConditionFalse {
+		if conditions[nfdeployments.Available] == metav1.ConditionFalse &&
+			conditions[nfdeployments.Reconciling] == metav1.ConditionFalse {
 			message := "NF is neither available nor reconciling."
 			currentStatus = NFStatus{
-				state:            types.Stalled,
+				state:            nfdeployments.Stalled,
 				stateMessage:     message,
-				activeConditions: map[types.NFConditionType]string{types.Stalled: message},
+				activeConditions: map[nfdeployments.NFDeploymentConditionType]string{nfdeployments.Stalled: message},
 			}
-		} else if conditions[types.Stalled] == corev1.ConditionTrue {
+		} else if conditions[nfdeployments.Stalled] == metav1.ConditionTrue {
 
 			currentStatus = NFStatus{
-				state: types.Stalled, stateMessage: conditionMessage[types.Stalled],
+				state: nfdeployments.Stalled, stateMessage: conditionMessage[nfdeployments.Stalled],
 				activeConditions: activeConditions,
 			}
-		} else if conditions[types.Ready] == corev1.ConditionTrue {
-			if _, isPresent := activeConditions[types.Available]; !isPresent {
-				activeConditions[types.Available] = "NF is in ready state."
+		} else if conditions[nfdeployments.Ready] == metav1.ConditionTrue {
+			if _, isPresent := activeConditions[nfdeployments.Available]; !isPresent {
+				activeConditions[nfdeployments.Available] = "NF is in ready state."
 			}
 			currentStatus = NFStatus{
-				state: types.Ready, stateMessage: conditionMessage[types.Ready],
+				state: nfdeployments.Ready, stateMessage: conditionMessage[nfdeployments.Ready],
 				activeConditions: activeConditions,
 			}
-		} else if conditions[types.Peering] == corev1.ConditionTrue {
-			if _, isPresent := activeConditions[types.Reconciling]; !isPresent {
-				activeConditions[types.Reconciling] = "NF is in peering state."
+		} else if conditions[nfdeployments.Peering] == metav1.ConditionTrue {
+			if _, isPresent := activeConditions[nfdeployments.Reconciling]; !isPresent {
+				activeConditions[nfdeployments.Reconciling] = "NF is in peering state."
 			}
-			if _, isPresent := activeConditions[types.Available]; !isPresent {
-				activeConditions[types.Available] = "NF is in peering state."
+			if _, isPresent := activeConditions[nfdeployments.Available]; !isPresent {
+				activeConditions[nfdeployments.Available] = "NF is in peering state."
 			}
 			currentStatus = NFStatus{
-				state: types.Peering, stateMessage: conditionMessage[types.Peering],
+				state: nfdeployments.Peering, stateMessage: conditionMessage[nfdeployments.Peering],
 				activeConditions: activeConditions,
 			}
-		} else if conditions[types.Reconciling] == corev1.ConditionTrue {
+		} else if conditions[nfdeployments.Reconciling] == metav1.ConditionTrue {
 			currentStatus = NFStatus{
-				state:            types.Reconciling,
-				stateMessage:     conditionMessage[types.Reconciling],
+				state:            nfdeployments.Reconciling,
+				stateMessage:     conditionMessage[nfdeployments.Reconciling],
 				activeConditions: activeConditions,
 			}
 		} else {
 			currentStatus = NFStatus{
-				state:            types.Available,
-				stateMessage:     conditionMessage[types.Available],
+				state:            nfdeployments.Available,
+				stateMessage:     conditionMessage[nfdeployments.Available],
 				activeConditions: activeConditions,
 			}
 		}
@@ -402,30 +402,30 @@ func (deployment *Deployment) updateCurrentNFStatus(
 // calculateNFConditionSet: Returns maps which store the Status and Message of
 // all NFConditions present in NFStatus. Assumes Unknown Status of all
 // absent conditions
-func (deployment *Deployment) calculateNFConditionSet(nfConditions *[]types.NFCondition) (
-	map[types.NFConditionType]corev1.ConditionStatus,
-	map[types.NFConditionType]string,
+func (deployment *Deployment) calculateNFConditionSet(nfConditions *[]metav1.Condition) (
+	map[nfdeployments.NFDeploymentConditionType]metav1.ConditionStatus,
+	map[nfdeployments.NFDeploymentConditionType]string,
 ) {
-	var conditions = make(map[types.NFConditionType]corev1.ConditionStatus)
-	var conditionMessage = make(map[types.NFConditionType]string)
+	var conditions = make(map[nfdeployments.NFDeploymentConditionType]metav1.ConditionStatus)
+	var conditionMessage = make(map[nfdeployments.NFDeploymentConditionType]string)
 	for _, condition := range *nfConditions {
-		conditions[condition.Type] = condition.Status
-		conditionMessage[condition.Type] = condition.Message
+		conditions[nfdeployments.NFDeploymentConditionType(condition.Type)] = condition.Status
+		conditionMessage[nfdeployments.NFDeploymentConditionType(condition.Type)] = condition.Message
 	}
-	if _, isPresent := conditions[types.Reconciling]; !isPresent {
-		conditions[types.Reconciling] = corev1.ConditionUnknown
+	if _, isPresent := conditions[nfdeployments.Reconciling]; !isPresent {
+		conditions[nfdeployments.Reconciling] = metav1.ConditionUnknown
 	}
-	if _, isPresent := conditions[types.Peering]; !isPresent {
-		conditions[types.Peering] = corev1.ConditionUnknown
+	if _, isPresent := conditions[nfdeployments.Peering]; !isPresent {
+		conditions[nfdeployments.Peering] = metav1.ConditionUnknown
 	}
-	if _, isPresent := conditions[types.Ready]; !isPresent {
-		conditions[types.Ready] = corev1.ConditionUnknown
+	if _, isPresent := conditions[nfdeployments.Ready]; !isPresent {
+		conditions[nfdeployments.Ready] = metav1.ConditionUnknown
 	}
-	if _, isPresent := conditions[types.Stalled]; !isPresent {
-		conditions[types.Stalled] = corev1.ConditionUnknown
+	if _, isPresent := conditions[nfdeployments.Stalled]; !isPresent {
+		conditions[nfdeployments.Stalled] = metav1.ConditionUnknown
 	}
-	if _, isPresent := conditions[types.Available]; !isPresent {
-		conditions[types.Available] = corev1.ConditionUnknown
+	if _, isPresent := conditions[nfdeployments.Available]; !isPresent {
+		conditions[nfdeployments.Available] = metav1.ConditionUnknown
 	}
 	return conditions, conditionMessage
 }
