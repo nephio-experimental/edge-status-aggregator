@@ -18,8 +18,6 @@ package v1alpha1
 
 import (
 	"errors"
-	"fmt"
-	"reflect"
 
 	"k8s.io/apimachinery/pkg/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -36,7 +34,7 @@ func (r *NfDeploy) SetupWebhookWithManager(mgr ctrl.Manager) error {
 		Complete()
 }
 
-//+kubebuilder:webhook:path=/validate-nfdeploy-nephio-org-v1alpha1-nfdeploy,mutating=false,failurePolicy=fail,sideEffects=None,groups=nfdeploy.nephio.org,resources=nfdeploys,verbs=create;update,versions=v1alpha1,name=vnfdeploy.google.com,admissionReviewVersions=v1
+//+kubebuilder:webhook:path=/validate-nfdeploy-nephio-org-v1alpha1-nfdeploy,mutating=false,failurePolicy=fail,sideEffects=None,groups=nfdeploy.nephio.org,resources=nfdeploys,verbs=create,versions=v1alpha1,name=vnfdeploy.google.com,admissionReviewVersions=v1
 
 var _ webhook.Validator = &NfDeploy{}
 
@@ -98,11 +96,7 @@ func (r *NfDeploy) ValidateCreate() error {
 func (r *NfDeploy) ValidateUpdate(old runtime.Object) error {
 	nfdeploylog.Info("validate update", "name", r.Name)
 
-	oldNfDeploy := old.(*NfDeploy)
-	if reflect.DeepEqual(r.Spec, oldNfDeploy.Spec) {
-		return nil
-	}
-	return fmt.Errorf("NFDeploy update not allowed")
+	return nil
 }
 
 // ValidateDelete implements webhook.Validator so a webhook will be registered for the type
