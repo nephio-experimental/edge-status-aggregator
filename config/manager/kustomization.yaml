@@ -25,5 +25,4 @@ apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 images:
 - name: controller
-  newName: edge-status-aggregator
-  newTag: latest
+  newName: tliron/edge-status-aggregator
