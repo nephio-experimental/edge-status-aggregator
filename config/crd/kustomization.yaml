@@ -17,6 +17,7 @@
 # It should be run by config/default
 resources:
 - bases/nfdeploy.nephio.org_nfdeploys.yaml
+- bases/config.cloud.google.com_edgeclusters.yaml
 #+kubebuilder:scaffold:crdkustomizeresource
 
 patchesStrategicMerge:
