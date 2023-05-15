@@ -19,7 +19,7 @@ package deployment
 import (
 	"time"
 
-	types "github.com/nephio-project/common-lib/nfdeploy"
+	nfdeployments "github.com/nephio-project/api/nf_deployments/v1alpha1"
 )
 
 type void struct{}
@@ -44,8 +44,8 @@ type SMFNode struct {
 
 type NFStatus struct {
 	// all the NFConditions that were true in the last observed edge event
-	activeConditions   map[types.NFConditionType]string
-	state              types.NFConditionType
+	activeConditions   map[nfdeployments.NFDeploymentConditionType]string
+	state              nfdeployments.NFDeploymentConditionType
 	stateMessage       string
 	lastEventTimestamp time.Time
 }

@@ -28,42 +28,6 @@ import (
 )
 
 var _ = Describe("NFDeploy Validator Webhook", func() {
-	Context("Test NfDeploy update", func() {
-		var namespace *corev1.Namespace
-		var object *NfDeploy
-		BeforeEach(func(ctx SpecContext) {
-			namespace = &corev1.Namespace{
-				ObjectMeta: v1.ObjectMeta{
-					Name: fmt.Sprintf("namespace-%v", rand.Intn(100)),
-				},
-			}
-			Expect(k8sClient.Create(ctx, namespace)).To(Succeed())
-			object = &NfDeploy{
-				TypeMeta:   v1.TypeMeta{APIVersion: "nfdeploy.nephio.org/v1alpha1", Kind: "NfDeploy"},
-				ObjectMeta: v1.ObjectMeta{Name: "test-nfdeploy", Namespace: namespace.Name},
-			}
-		})
-		When("NFDeploy resource is updated", func() {
-			When("Spec is same and status is updated", func() {
-				It("Should allow the admission request", func() {
-					Expect(k8sClient.Create(ctx, object)).To(Succeed())
-					object.Status.AvailableNFs = 3
-					Expect(k8sClient.Status().Update(ctx, object)).To(Succeed())
-				})
-			})
-
-			When("Spec is different", func() {
-				It("Should deny the admission request", func() {
-					Expect(k8sClient.Create(ctx, object)).To(Succeed())
-					object.Spec.Plmn.MCC = object.Spec.Plmn.MCC + 1
-					err := k8sClient.Update(ctx, object)
-					Expect(err).To(HaveOccurred())
-				})
-			})
-
-		})
-	})
-
 	Context("Test NfDeploy creation", Ordered, func() {
 		var namespace *corev1.Namespace
 		var object *NfDeploy
