@@ -56,10 +56,11 @@ func createSampleDeployment() *Deployment {
 		},
 		amfNodes: map[string]AMFNode{
 			sampleAMFName: AMFNode{
-				Node{
+				Node: Node{
 					Id: sampleAMFName, NFType: AMF,
 					Connections: map[string]void{sampleSMFName: present},
 				},
+				Spec: AMFSpec{},
 			},
 		},
 		edges: []Edge{

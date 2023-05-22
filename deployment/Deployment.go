@@ -129,15 +129,14 @@ func (deployment *Deployment) addOrUpdateSMFNode(site v1alpha1.Site) {
 
 func (deployment *Deployment) addOrUpdateAMFNode(site v1alpha1.Site) {
 	nfId := site.Id
+	clusterName := site.ClusterName
 	if _, isPresent := deployment.amfNodes[nfId]; !isPresent {
-		amfNode := AMFNode{
-			Node{
-				Id: nfId, NFType: AMF, Connections: make(map[string]void),
-			},
-		}
-		// TODO : Update AMFNode once AMFDeploy is finalised
+		node := Node{Id: nfId, NFType: AMF, Connections: make(map[string]void)}
+		amfNode := AMFNode{Node: node, Spec: AMFSpec{clusterName: clusterName}}
 		deployment.amfNodes[amfNode.Id] = amfNode
 	}
+	amfNode := deployment.amfNodes[nfId]
+	deployment.amfNodes[nfId] = amfNode
 }
 
 // AddConnection := Add nfId2 to nfId1's connection list
@@ -230,9 +229,8 @@ func (deployment *Deployment) ReportNFDeployEvent(nfDeploy v1alpha1.NfDeploy) {
 		case SMF:
 			deployment.addOrUpdateSMFNode(site)
 
-			// TODO: Uncomment when AMFDeploy is finalised
-			//case AMF:
-			//	deployment.addOrUpdateAMFNode(site)
+		case AMF:
+			deployment.addOrUpdateAMFNode(site)
 		}
 	}
 	for _, site := range nfDeploy.Spec.Sites {
@@ -408,8 +406,41 @@ func (deployment *Deployment) processEdgeEvent(object *preprocessor.Event) {
 		deployment.processNFEdgeEvent(
 			&smfDeployment.Status.Conditions, smfName,
 		)
+	case "AMFDeployment":
+		amfDeployment := &nfdeployments.AMFDeployment{}
+		if err := runtime.DefaultUnstructuredConverter.
+			FromUnstructured(obj.Object, amfDeployment); err != nil {
+			deployment.logger.Info(
+				"Unable to convert received AMFDeployment object to AMFDeployment type from *unstructured.Unstructured",
+				"err", err.Error(),
+			)
+			return
+		}
+		amfName := amfDeployment.ObjectMeta.Labels[util.NFSiteIDLabel]
+		deployment.logger.Info(
+			"Edge event received for", "AMFDeployment", amfName,
+		)
+		if _, isPresent := deployment.amfNodes[amfName]; !isPresent {
+			deployment.logger.Info(
+				"The NF is not present in current deployment", "AMFDeployment",
+				amfName,
+			)
+			return
+		}
+		if object.Timestamp.Before(deployment.amfNodes[amfName].Status.lastEventTimestamp) {
+			deployment.logger.Info(
+				"The NF event received is of previous timestamp", "AMFDeployment",
+				amfName,
+			)
+			return
+		}
+		amfNode := deployment.amfNodes[amfName]
+		amfNode.Status.lastEventTimestamp = object.Timestamp
+		deployment.amfNodes[amfName] = amfNode
+		deployment.processNFEdgeEvent(
+			&amfDeployment.Status.Conditions, amfName,
+		)
 	}
-	// TODO: implement AMF Status once AMFDeploy is finalised
 }
 
 // listenEdgeEvents listens for events from edgewatcher through deploymentChan
