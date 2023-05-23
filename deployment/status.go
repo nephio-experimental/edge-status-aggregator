@@ -127,6 +127,12 @@ func (deployment *Deployment) computeReconcilingCondition(
 			reconcilingNFs++
 		}
 	}
+	for _, node := range deployment.amfNodes {
+		if _, isPresent := node.Status.activeConditions[nfdeployments.Reconciling]; isPresent {
+			message = message + node.Id + ", "
+			reconcilingNFs++
+		}
+	}
 	if readyNFs+reconcilingNFs == targetedNFs {
 		reconcilingCondition.Reason = "AllUnReconciledNFsReconciling"
 		message = strings.TrimSuffix(message, ", ")
@@ -173,6 +179,12 @@ func (deployment *Deployment) computePeeringCondition(
 		}
 	}
 	for _, node := range deployment.smfNodes {
+		if _, isPresent := node.Status.activeConditions[nfdeployments.Peering]; isPresent {
+			message = message + node.Id + ", "
+			peeringNFs++
+		}
+	}
+	for _, node := range deployment.amfNodes {
 		if _, isPresent := node.Status.activeConditions[nfdeployments.Peering]; isPresent {
 			message = message + node.Id + ", "
 			peeringNFs++
@@ -236,6 +248,11 @@ func (deployment *Deployment) computeReadyCondition(
 			message = message + node.Id + ", "
 		}
 	}
+	for _, node := range deployment.amfNodes {
+		if _, isPresent := node.Status.activeConditions[nfdeployments.Ready]; !isPresent {
+			message = message + node.Id + ", "
+		}
+	}
 	message = strings.TrimSuffix(message, ", ")
 	message = message + "."
 	readyCondition.Message = message
@@ -280,6 +297,13 @@ func (deployment *Deployment) computeStalledCondition(
 			}
 		}
 	}
+	for _, node := range deployment.amfNodes {
+		for conditionType, conditionStatus := range node.Status.activeConditions {
+			if conditionType == nfdeployments.Stalled {
+				message = message + node.Id + ": " + conditionStatus + ", "
+			}
+		}
+	}
 	message = strings.TrimSuffix(message, ", ")
 	message = message + "."
 	stalledCondition.Message = message
@@ -292,7 +316,7 @@ func (deployment *Deployment) calculateNFCount() (int, int, int, int) {
 	availableNFs := 0
 	readyNFs := 0
 	stalledNFs := 0
-	targetedNFs := len(deployment.upfNodes) + len(deployment.smfNodes)
+	targetedNFs := len(deployment.upfNodes) + len(deployment.smfNodes) + len(deployment.amfNodes)
 	for _, node := range deployment.upfNodes {
 		for conditionType := range node.Status.activeConditions {
 			if conditionType == nfdeployments.Ready {
@@ -307,6 +331,20 @@ func (deployment *Deployment) calculateNFCount() (int, int, int, int) {
 		}
 	}
 	for _, node := range deployment.smfNodes {
+		for conditionType := range node.Status.activeConditions {
+			if conditionType == nfdeployments.Ready {
+				readyNFs++
+			}
+			if conditionType == nfdeployments.Stalled {
+				stalledNFs++
+			}
+			if conditionType == nfdeployments.Available {
+				availableNFs++
+			}
+		}
+	}
+
+	for _, node := range deployment.amfNodes {
 		for conditionType := range node.Status.activeConditions {
 			if conditionType == nfdeployments.Ready {
 				readyNFs++
@@ -396,6 +434,12 @@ func (deployment *Deployment) updateCurrentNFStatus(
 		currentStatus.lastEventTimestamp = nf.Status.lastEventTimestamp
 		nf.Status = currentStatus
 		deployment.smfNodes[nfId] = nf
+	}
+	if _, isPresent := deployment.amfNodes[nfId]; isPresent {
+		nf := deployment.amfNodes[nfId]
+		currentStatus.lastEventTimestamp = nf.Status.lastEventTimestamp
+		nf.Status = currentStatus
+		deployment.amfNodes[nfId] = nf
 	}
 }
 

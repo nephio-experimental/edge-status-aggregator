@@ -52,6 +52,8 @@ type NFStatus struct {
 
 type AMFNode struct {
 	Node
+	Spec   AMFSpec
+	Status NFStatus
 }
 
 type AUSFNode struct {
@@ -79,6 +81,7 @@ type SMFSpec struct {
 // AMFSpec : Stores the spec related to AMF
 type AMFSpec struct {
 	maxSubscribers string
+	clusterName    string
 }
 
 type NFType string

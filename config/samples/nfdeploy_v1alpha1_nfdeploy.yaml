@@ -37,3 +37,12 @@ spec:
       nfVersion: test-v0.1
       connectivities:
         - neighborName: upf-dummy
+        - neighborName: amf-dummy
+    - id: amf-dummy
+      clusterName: nephio-cluster-01
+      nfType: amf
+      nfTypeName: AmfTypeTest
+      nfVendor: nokia
+      nfVersion: test-v0.1
+      connectivities:
+        - neighborName: smf-dummy

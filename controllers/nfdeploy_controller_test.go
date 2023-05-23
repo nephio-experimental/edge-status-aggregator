@@ -117,6 +117,43 @@ func generateSMFEdgeEvent(
 	}
 }
 
+func generateAMFEdgeEvent(
+	stalledStatus metav1.ConditionStatus, availableStatus metav1.ConditionStatus,
+	readyStatus metav1.ConditionStatus, peeringStatus metav1.ConditionStatus,
+	reconcilingStatus metav1.ConditionStatus, name string,
+) preprocessor.Event {
+
+	amfDeploy := nfdeployments.AMFDeployment{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:   name,
+			Labels: map[string]string{util.NFSiteIDLabel: name},
+		},
+		Status: nfdeployments.AMFDeploymentStatus{NFDeploymentStatus: nfdeployments.NFDeploymentStatus{
+			Conditions: []metav1.Condition{
+				{Type: string(nfdeployments.Stalled), Status: stalledStatus},
+				{Type: string(nfdeployments.Reconciling), Status: reconcilingStatus},
+				{Type: string(nfdeployments.Available), Status: availableStatus},
+				{Type: string(nfdeployments.Peering), Status: peeringStatus},
+				{Type: string(nfdeployments.Ready), Status: readyStatus},
+			},
+		},
+		},
+	}
+
+	data, err := runtime.DefaultUnstructuredConverter.ToUnstructured(&amfDeploy)
+	Expect(err).To(
+		BeNil(),
+		"unable to convert SmfDeploy type to unstructured.Unstructured",
+	)
+
+	return preprocessor.Event{
+		Key: preprocessor.RequestKey{Namespace: "amf", Kind: "AMFDeployment"},
+		Object: &unstructured.Unstructured{
+			Object: data,
+		},
+	}
+}
+
 func getNfDeployCr(path string) (*v1alpha1.NfDeploy, error) {
 	u, err := utils.ParseYaml(
 		path, schema.GroupVersionKind{
@@ -476,7 +513,7 @@ var _ = Describe(
 					"Testing reconciling status for valid edge events", func() {
 						It(
 							"Should update nfdeploy status", func() {
-								// Two NFs in test resource
+								// Three NFs in test resource
 								nfDeploy, _ := getNfDeployCr(crNfDeployPath)
 								nfDeploy.Name = "reconciling-test"
 								Expect(
@@ -544,6 +581,33 @@ var _ = Describe(
 										}
 										return ""
 									},
+								).Should(Equal("SomeNFsReconciling"))
+
+								req.SubscriberInfo.Channel <- generateAMFEdgeEvent(
+									metav1.ConditionFalse, metav1.ConditionFalse,
+									metav1.ConditionFalse, metav1.ConditionFalse,
+									metav1.ConditionTrue, "amf-dummy",
+								)
+								Eventually(
+									func() string {
+										// fetching latest nfDeploy
+										err := k8sClient.Get(
+											ctx, types.NamespacedName{
+												Namespace: nfDeploy.Namespace,
+												Name:      nfDeploy.Name,
+											}, &newNfDeploy,
+										)
+										if err != nil {
+											return ""
+										}
+
+										for _, c := range newNfDeploy.Status.Conditions {
+											if c.Type == v1alpha1.DeploymentReconciling {
+												return c.Reason
+											}
+										}
+										return ""
+									},
 								).Should(Equal("AllUnReconciledNFsReconciling"))
 
 								// No NF reconciling
@@ -556,6 +620,11 @@ var _ = Describe(
 									metav1.ConditionFalse, metav1.ConditionFalse,
 									metav1.ConditionFalse, metav1.ConditionFalse,
 									metav1.ConditionFalse, "smf-dummy",
+								)
+								req.SubscriberInfo.Channel <- generateAMFEdgeEvent(
+									metav1.ConditionFalse, metav1.ConditionFalse,
+									metav1.ConditionFalse, metav1.ConditionFalse,
+									metav1.ConditionFalse, "amf-dummy",
 								)
 								Eventually(
 									func() string {
@@ -590,6 +659,11 @@ var _ = Describe(
 									metav1.ConditionTrue, metav1.ConditionFalse,
 									metav1.ConditionFalse, "smf-dummy",
 								)
+								req.SubscriberInfo.Channel <- generateAMFEdgeEvent(
+									metav1.ConditionFalse, metav1.ConditionTrue,
+									metav1.ConditionTrue, metav1.ConditionFalse,
+									metav1.ConditionFalse, "amf-dummy",
+								)
 								Eventually(
 									func() string {
 										// fetching latest nfDeploy
@@ -619,7 +693,7 @@ var _ = Describe(
 					"Testing peering status for valid edge events", func() {
 						It(
 							"Should update nfdeploy status", func() {
-								// Two NFs in test resource
+								// Three NFs in test resource
 								nfDeploy, _ := getNfDeployCr(crNfDeployPath)
 								nfDeploy.Name = "peering-test"
 								Expect(
@@ -687,6 +761,34 @@ var _ = Describe(
 										}
 										return ""
 									},
+								).Should(Equal("SomeNFsPeering"))
+
+								// Third NF peering
+								req.SubscriberInfo.Channel <- generateAMFEdgeEvent(
+									metav1.ConditionFalse, metav1.ConditionTrue,
+									metav1.ConditionFalse, metav1.ConditionTrue,
+									metav1.ConditionTrue, "amf-dummy",
+								)
+								Eventually(
+									func() string {
+										// fetching latest nfDeploy
+										err := k8sClient.Get(
+											ctx, types.NamespacedName{
+												Namespace: nfDeploy.Namespace,
+												Name:      nfDeploy.Name,
+											}, &newNfDeploy,
+										)
+										if err != nil {
+											return ""
+										}
+
+										for _, c := range newNfDeploy.Status.Conditions {
+											if c.Type == v1alpha1.DeploymentPeering {
+												return c.Reason
+											}
+										}
+										return ""
+									},
 								).Should(Equal("AllUnPeeredNFsPeering"))
 
 								// No NF peering
@@ -699,6 +801,11 @@ var _ = Describe(
 									metav1.ConditionFalse, metav1.ConditionFalse,
 									metav1.ConditionFalse, metav1.ConditionFalse,
 									metav1.ConditionFalse, "smf-dummy",
+								)
+								req.SubscriberInfo.Channel <- generateAMFEdgeEvent(
+									metav1.ConditionFalse, metav1.ConditionFalse,
+									metav1.ConditionFalse, metav1.ConditionFalse,
+									metav1.ConditionFalse, "amf-dummy",
 								)
 								Eventually(
 									func() string {
@@ -733,6 +840,11 @@ var _ = Describe(
 									metav1.ConditionTrue, metav1.ConditionFalse,
 									metav1.ConditionFalse, "smf-dummy",
 								)
+								req.SubscriberInfo.Channel <- generateAMFEdgeEvent(
+									metav1.ConditionFalse, metav1.ConditionTrue,
+									metav1.ConditionTrue, metav1.ConditionFalse,
+									metav1.ConditionFalse, "amf-dummy",
+								)
 								Eventually(
 									func() string {
 										// fetching latest nfDeploy
@@ -762,7 +874,7 @@ var _ = Describe(
 					"Testing ready status for valid edge events", func() {
 						It(
 							"Should update nfdeploy status", func() {
-								// Two NFs in test resource
+								// Three NFs in test resource
 								nfDeploy, _ := getNfDeployCr(crNfDeployPath)
 								nfDeploy.Name = "ready-test"
 								Expect(
@@ -830,6 +942,33 @@ var _ = Describe(
 										}
 										return ""
 									},
+								).Should(Equal("SomeNFsReady"))
+
+								req.SubscriberInfo.Channel <- generateAMFEdgeEvent(
+									metav1.ConditionFalse, metav1.ConditionTrue,
+									metav1.ConditionTrue, metav1.ConditionFalse,
+									metav1.ConditionFalse, "amf-dummy",
+								)
+								Eventually(
+									func() string {
+										// fetching latest nfDeploy
+										err := k8sClient.Get(
+											ctx, types.NamespacedName{
+												Namespace: nfDeploy.Namespace,
+												Name:      nfDeploy.Name,
+											}, &newNfDeploy,
+										)
+										if err != nil {
+											return ""
+										}
+
+										for _, c := range newNfDeploy.Status.Conditions {
+											if c.Type == v1alpha1.DeploymentReady {
+												return c.Reason
+											}
+										}
+										return ""
+									},
 								).Should(Equal("AllNFsReady"))
 
 								// No NF ready
@@ -842,6 +981,11 @@ var _ = Describe(
 									metav1.ConditionFalse, metav1.ConditionFalse,
 									metav1.ConditionFalse, metav1.ConditionFalse,
 									metav1.ConditionFalse, "smf-dummy",
+								)
+								req.SubscriberInfo.Channel <- generateAMFEdgeEvent(
+									metav1.ConditionFalse, metav1.ConditionFalse,
+									metav1.ConditionFalse, metav1.ConditionFalse,
+									metav1.ConditionFalse, "amf-dummy",
 								)
 								Eventually(
 									func() string {
@@ -873,7 +1017,7 @@ var _ = Describe(
 					"Testing stalled status for valid edge events", func() {
 						It(
 							"Should update nfdeploy status", func() {
-								// Two NFs in test resource
+								// Three NFs in test resource
 								nfDeploy, _ := getNfDeployCr(crNfDeployPath)
 								nfDeploy.Name = "stalled-test"
 								Expect(
@@ -896,6 +1040,11 @@ var _ = Describe(
 									metav1.ConditionFalse, metav1.ConditionTrue,
 									metav1.ConditionFalse, metav1.ConditionFalse,
 									metav1.ConditionFalse, "smf-dummy",
+								)
+								req.SubscriberInfo.Channel <- generateAMFEdgeEvent(
+									metav1.ConditionFalse, metav1.ConditionTrue,
+									metav1.ConditionFalse, metav1.ConditionFalse,
+									metav1.ConditionFalse, "amf-dummy",
 								)
 								var newNfDeploy v1alpha1.NfDeploy
 								Eventually(
@@ -946,6 +1095,34 @@ var _ = Describe(
 										}
 										return ""
 									},
+								).Should(Equal("SomeNFsStalled"))
+
+								// Third NF stalled
+								req.SubscriberInfo.Channel <- generateAMFEdgeEvent(
+									metav1.ConditionTrue, metav1.ConditionFalse,
+									metav1.ConditionFalse, metav1.ConditionFalse,
+									metav1.ConditionFalse, "amf-dummy",
+								)
+								Eventually(
+									func() string {
+										// fetching latest nfDeploy
+										err := k8sClient.Get(
+											ctx, types.NamespacedName{
+												Namespace: nfDeploy.Namespace,
+												Name:      nfDeploy.Name,
+											}, &newNfDeploy,
+										)
+										if err != nil {
+											return ""
+										}
+
+										for _, c := range newNfDeploy.Status.Conditions {
+											if c.Type == v1alpha1.DeploymentStalled {
+												return c.Reason
+											}
+										}
+										return ""
+									},
 								).Should(Equal("AllNFsStalled"))
 
 								// No NF stalled
@@ -958,6 +1135,11 @@ var _ = Describe(
 									metav1.ConditionFalse, metav1.ConditionTrue,
 									metav1.ConditionFalse, metav1.ConditionFalse,
 									metav1.ConditionFalse, "smf-dummy",
+								)
+								req.SubscriberInfo.Channel <- generateAMFEdgeEvent(
+									metav1.ConditionFalse, metav1.ConditionTrue,
+									metav1.ConditionFalse, metav1.ConditionFalse,
+									metav1.ConditionFalse, "amf-dummy",
 								)
 								Eventually(
 									func() string {
@@ -1023,6 +1205,11 @@ var _ = Describe(
 										metav1.ConditionTrue, metav1.ConditionFalse,
 										metav1.ConditionFalse, "smf-dummy",
 									),
+									generateAMFEdgeEvent(
+										metav1.ConditionFalse, metav1.ConditionTrue,
+										metav1.ConditionTrue, metav1.ConditionFalse,
+										metav1.ConditionFalse, "amf-dummy",
+									),
 								)
 								finalExpectedStatus := make(map[v1alpha1.NFDeployConditionType]corev1.ConditionStatus)
 								finalExpectedStatus[v1alpha1.DeploymentStalled] = corev1.ConditionFalse
@@ -1054,6 +1241,10 @@ var _ = Describe(
 										metav1.ConditionTrue, metav1.ConditionUnknown,
 										metav1.ConditionUnknown, metav1.ConditionUnknown,
 										metav1.ConditionTrue, "smf-dummy",
+									), generateAMFEdgeEvent(
+										metav1.ConditionTrue, metav1.ConditionUnknown,
+										metav1.ConditionUnknown, metav1.ConditionUnknown,
+										metav1.ConditionTrue, "amf-dummy",
 									),
 								)
 								finalExpectedStatus := make(map[v1alpha1.NFDeployConditionType]corev1.ConditionStatus)
